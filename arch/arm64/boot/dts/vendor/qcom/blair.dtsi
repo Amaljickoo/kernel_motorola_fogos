@@ -61,7 +61,7 @@
 
 		CPU0: cpu@0 {
 			device_type = "cpu";
-			compatible = "qcom,kryo";
+			compatible = "arm,cortex-a55";
 			reg = <0x0 0x0>;
 			cpu-idle-states = <&SLVR_PC &SLVR_RAIL_OFF>;
 			enable-method = "psci";
@@ -85,7 +85,7 @@
 
 		CPU1: cpu@100 {
 			device_type = "cpu";
-			compatible = "qcom,kryo";
+			compatible = "arm,cortex-a55";
 			reg = <0x0 0x100>;
 			cpu-idle-states = <&SLVR_PC &SLVR_RAIL_OFF>;
 			enable-method = "psci";
@@ -103,7 +103,7 @@
 
 		CPU2: cpu@200 {
 			device_type = "cpu";
-			compatible = "qcom,kryo";
+			compatible = "arm,cortex-a55";
 			reg = <0x0 0x200>;
 			cpu-idle-states = <&SLVR_PC &SLVR_RAIL_OFF>;
 			enable-method = "psci";
@@ -121,7 +121,7 @@
 
 		CPU3: cpu@300 {
 			device_type = "cpu";
-			compatible = "qcom,kryo";
+			compatible = "arm,cortex-a55";
 			reg = <0x0 0x300>;
 			cpu-idle-states = <&SLVR_PC &SLVR_RAIL_OFF>;
 			enable-method = "psci";
@@ -139,7 +139,7 @@
 
 		CPU4: cpu@400 {
 			device_type = "cpu";
-			compatible = "qcom,kryo";
+			compatible = "arm,cortex-a55";
 			reg = <0x0 0x400>;
 			cpu-idle-states = <&SLVR_PC &SLVR_RAIL_OFF>;
 			enable-method = "psci";
@@ -157,7 +157,7 @@
 
 		CPU5: cpu@500 {
 			device_type = "cpu";
-			compatible = "qcom,kryo";
+			compatible = "arm,cortex-a55";
 			reg = <0x0 0x500>;
 			cpu-idle-states = <&SLVR_PC &SLVR_RAIL_OFF>;
 			enable-method = "psci";
@@ -175,7 +175,7 @@
 
 		CPU6: cpu@600 {
 			device_type = "cpu";
-			compatible = "qcom,kryo";
+			compatible = "arm,cortex-a78";
 			reg = <0x0 0x600>;
 			cpu-idle-states = <&GOLD_PC &GOLD_RAIL_OFF>;
 			enable-method = "psci";
@@ -194,7 +194,7 @@
 
 		CPU7: cpu@700 {
 			device_type = "cpu";
-			compatible = "qcom,kryo";
+			compatible = "arm,cortex-a78";
 			reg = <0x0 0x700>;
 			cpu-idle-states = <&GOLD_PC &GOLD_RAIL_OFF>;
 			enable-method = "psci";
