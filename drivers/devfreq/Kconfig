@@ -225,3 +225,10 @@ config ARM_QCOM_DEVFREQ_QOSLAT
 source "drivers/devfreq/event/Kconfig"
 
 endif # PM_DEVFREQ
+
+config QCOM_DEVFREQ_ICC_OVERCLOCK
+	bool "Enable overclock frequencies in QCOM devfreq ICC"
+	help
+	  If enabled, this adds additional overclock frequencies to
+	  1516.8 MHz (+19.6 MHz) to the L3 OPP table on supported
+	  Qualcomm SoCs.

@@ -157,7 +157,7 @@ static int populate_l3_opp_table(struct device *dev)
 	}
 
 	of_property_read_u32(dev->of_node, "qcom,ftbl-row-size",
-						&ftbl_row_size);
+						 &ftbl_row_size);
 
 	for (i = 0; i < MAX_L3_ENTRIES; i++) {
 		data = readl_relaxed(ftbl_base + i * ftbl_row_size);
@@ -173,10 +173,45 @@ static int populate_l3_opp_table(struct device *dev)
 			dev_pm_opp_add(dev, HZ_TO_MBPS(freq, d->width), 0);
 		else
 			dev_pm_opp_add(dev, freq, 0);
+
 		l3_freqs[i] = freq;
 		prev_freq = freq;
 	}
 
+#ifdef CONFIG_QCOM_DEVFREQ_ICC_OVERCLOCK
+	dev_info(dev, "CONFIG_QCOM_DEVFREQ_ICC_OVERCLOCK active on %s\n", dev_name(dev));
+
+	/* Add overclock freq unconditionally to every devfreq device */
+	if (i < MAX_L3_ENTRIES) {
+		unsigned long oc_freq = 1516800000UL;
+		bool already_present = false;
+		int j;
+
+		/* Check if it's already present to avoid duplication */
+		for (j = 0; j < i; j++) {
+			if (l3_freqs[j] == oc_freq) {
+				already_present = true;
+				dev_info(dev, "OC freq %lu is already at index %d\n", oc_freq, j);
+				break;
+			}
+		}
+
+		if (!already_present) {
+			dev_info(dev, "Adding OC freq on %s\n", dev_name(dev));
+
+			l3_freqs[i] = oc_freq;
+
+			if (d->spec->type == L3_MBPS_DEV) {
+				dev_pm_opp_add(dev, HZ_TO_MBPS(oc_freq, d->width), 0);
+				dev_info(dev, "Added OC freq %lu at index %d\n", oc_freq, i);
+			} else {
+				dev_pm_opp_add(dev, oc_freq, 0);
+			}
+
+			i++;
+		}
+	}
+#endif
 	devm_iounmap(dev, ftbl_base);
 	use_cached_l3_freqs = true;
 
