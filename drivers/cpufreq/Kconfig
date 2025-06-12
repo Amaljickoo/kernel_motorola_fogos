@@ -358,19 +358,3 @@ config CPU_FREQ_DUMP_LUT
 	  This feature is useful for analyzing and fine-tuning custom frequency-voltage
 	  tables, especially when implementing or optimizing CPU overclocking.
 
-config CPU_FREQ_OVERCLOCK
-	bool "Overclock cortex-A55 and cortex-A78 on blair"
-	select CPU_FREQ_GOV_SCHEDUTIL
-	select CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
-	default n
-	help
-	  Enable overclocking for Cortex-A55 up to 2.2 GHz and
-	  Cortex-A78 up to 2.6 GHz on Snapdragon 6s Gen 3 platform.
-
-	  This option works with the CPUFreq governor 'schedutil' as the
-	  default governor, allowing efficient and responsive dynamic
-	  frequency scaling based on system load.
-
-	  Use this option only if you understand the implications of
-	  overclocking on your hardware and system behavior.
-

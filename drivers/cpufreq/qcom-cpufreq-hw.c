@@ -118,48 +118,6 @@ static struct lut_entry cpufreq_lut_dump[MAX_LUT_ENTRIES];
 static u32 cpufreq_lut_entry_count = 0;
 #endif
 
-#ifdef CONFIG_CPU_FREQ_OVERCLOCK
-struct custom_freq_entry {
-    u32 freq_khz;
-    u32 volt_uv;
-    u32 core_count;
-};
-
-static struct custom_freq_entry policy0_custom_table[] = {
-    { 300000, 576000, 6 },
-    { 576000, 576000, 6 },
-    { 691200, 576000, 6 },
-    { 940800, 696000, 6 },
-    { 1113600, 724000, 6 },
-    { 1324800, 772000, 6 },
-    { 1516800, 820000, 6 },
-    { 1651200, 848000, 6 },
-    { 1708800, 860000, 6 },
-    { 1804800, 870000, 6 }, // ORIG: uV=884000 | CHANGED: Slightly higher than 860000
-    { 1900800, 880000, 6 }, // ORIG: uV=884000 | CHANGED: Slightly lower than 884000
-    { 2016000, 884000, 6 },
-    { 2180000, 915000, 6 }, // New custom freq entry 2180MHz
-    { 2208000, 920000, 6 }, // New custom freq entry 2208MHz
-};
-
-static struct custom_freq_entry policy6_custom_table[] = {
-    { 691200, 628000, 2 },
-    { 940800, 668000, 2 },
-    { 1228800, 716000, 2 },
-    { 1401600, 764000, 2 },
-    { 1516800, 796000, 2 },
-    { 1651200, 820000, 2 },
-    { 1804800, 836000, 2 },
-    { 1900800, 856000, 2 },
-    { 2054400, 860000, 2 },
-    { 2208000, 916000, 2 },
-    { 2304000, 916000, 2 },
-    { 2400000, 936000, 2 }, // New custom freq entry 2400MHz
-    { 2508000, 958000, 2 }, // New custom freq entry 2508MHz
-    { 2616000, 969000, 2 }, // New custom freq entry 2616MHz
-};
-#endif
-
 static struct cpufreq_qcom *qcom_freq_domain_map[NR_CPUS];
 static struct cpufreq_counter qcom_cpufreq_counter[NR_CPUS];
 
@@ -354,79 +312,6 @@ qcom_cpufreq_hw_fast_switch(struct cpufreq_policy *policy,
 	return policy->freq_table[index].frequency;
 }
 
-#ifdef CONFIG_CPU_FREQ_OVERCLOCK
-static int qcom_cpufreq_hw_cpu_init(struct cpufreq_policy *policy)
-{
-	struct cpufreq_qcom *c;
-	struct device *cpu_dev;
-	int ret, i;
-
-	cpu_dev = get_cpu_device(policy->cpu);
-	if (!cpu_dev) {
-		pr_err("%s: failed to get cpu%d device\n", __func__, policy->cpu);
-		return -ENODEV;
-	}
-
-	c = qcom_freq_domain_map[policy->cpu];
-	if (!c) {
-		pr_err("No scaling support for CPU%d\n", policy->cpu);
-		return -ENODEV;
-	}
-
-	cpumask_copy(policy->cpus, &c->related_cpus);
-
-	ret = dev_pm_opp_get_opp_count(cpu_dev);
-	if (ret <= 0)
-		dev_err(cpu_dev, "OPP table is not ready\n");
-
-	policy->freq_table = c->table;
-	policy->driver_data = c->base;
-	policy->fast_switch_possible = true;
-	policy->dvfs_possible_from_any_cpu = true;
-
-	/* Set cpuinfo min/max from freq_table */
-	policy->cpuinfo.min_freq = c->table[0].frequency;
-	for (i = 0; c->table[i].frequency != CPUFREQ_TABLE_END; i++) {
-		// nothing, just iterating to the end
-	}
-	policy->cpuinfo.max_freq = c->table[i-1].frequency;
-
-	/* Optional: set default policy limits to max range */
-	policy->min = policy->cpuinfo.min_freq;
-	policy->max = policy->cpuinfo.max_freq;
-
-	dev_pm_opp_of_register_em(policy->cpus);
-
-	if (c->dcvsh_irq > 0 && !c->is_irq_requested) {
-		snprintf(c->dcvsh_irq_name, sizeof(c->dcvsh_irq_name),
-					"dcvsh-irq-%d", policy->cpu);
-		ret = devm_request_threaded_irq(cpu_dev, c->dcvsh_irq, NULL,
-			dcvsh_handle_isr, IRQF_TRIGGER_HIGH | IRQF_ONESHOT |
-			IRQF_NO_SUSPEND, c->dcvsh_irq_name, c);
-		if (ret) {
-			dev_err(cpu_dev, "Failed to register irq %d\n", ret);
-			return ret;
-		}
-
-		ret = irq_set_affinity_hint(c->dcvsh_irq, &c->related_cpus);
-		if (ret)
-			dev_err(cpu_dev, "Failed to set affinity for irq %d\n", c->dcvsh_irq);
-
-		c->is_irq_requested = true;
-		writel_relaxed(0x0, c->base + offsets[REG_INTR_CLR]);
-		c->is_irq_enabled = true;
-
-		sysfs_attr_init(&c->freq_limit_attr.attr);
-		c->freq_limit_attr.attr.name = "dcvsh_freq_limit";
-		c->freq_limit_attr.show = dcvsh_freq_limit_show;
-		c->freq_limit_attr.attr.mode = 0444;
-		c->dcvsh_freq_limit = U32_MAX;
-		device_create_file(cpu_dev, &c->freq_limit_attr);
-	}
-
-	return 0;
-}
-#else
 static int qcom_cpufreq_hw_cpu_init(struct cpufreq_policy *policy)
 {
 	struct cpufreq_qcom *c;
@@ -489,7 +374,6 @@ static int qcom_cpufreq_hw_cpu_init(struct cpufreq_policy *policy)
 
 	return 0;
 }
-#endif
 
 static struct freq_attr *qcom_cpufreq_hw_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
@@ -550,34 +434,10 @@ static int qcom_cpufreq_hw_resume(struct cpufreq_policy *policy)
 	return 0;
 }
 
-#ifdef CONFIG_CPU_FREQ_OVERCLOCK
-static int qcom_cpufreq_hw_verify_policy(struct cpufreq_policy_data *policy)
-{
-	// Clamp min to cpuinfo.min_freq
-	if (policy->min < policy->cpuinfo.min_freq)
-		policy->min = policy->cpuinfo.min_freq;
-
-	// Clamp max to cpuinfo.max_freq
-	if (policy->max > policy->cpuinfo.max_freq)
-		policy->max = policy->cpuinfo.max_freq;
-
-	// Ensure min <= max
-	if (policy->min > policy->max)
-		policy->min = policy->max;
-
-	// Now we run the standard frequency table verification
-	return cpufreq_frequency_table_verify(policy, policy->freq_table);
-}
-#endif
-
 static struct cpufreq_driver cpufreq_qcom_hw_driver = {
 	.flags		= CPUFREQ_STICKY | CPUFREQ_NEED_INITIAL_FREQ_CHECK |
 			  CPUFREQ_HAVE_GOVERNOR_PER_POLICY,
-#ifdef CONFIG_CPU_FREQ_OVERCLOCK
-	.verify		= qcom_cpufreq_hw_verify_policy,
-#else
 	.verify		= cpufreq_generic_frequency_table_verify,
-#endif
 	.target_index	= qcom_cpufreq_hw_target_index,
 	.get		= qcom_cpufreq_hw_get,
 	.init		= qcom_cpufreq_hw_cpu_init,
@@ -590,61 +450,6 @@ static struct cpufreq_driver cpufreq_qcom_hw_driver = {
 	.resume		= qcom_cpufreq_hw_resume,
 };
 
-#ifdef CONFIG_CPU_FREQ_OVERCLOCK
-static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
-				    struct cpufreq_qcom *c, u32 max_cores)
-{
-	struct device *dev = &pdev->dev, *cpu_dev;
-	struct custom_freq_entry *custom_table;
-	u32 table_size;
-	unsigned long cpu;
-	int i;
-	u32 freq, volt, core_count;
-
-	/* Determine which policy table to use */
-	cpu = cpumask_first(&c->related_cpus);
-	cpu_dev = get_cpu_device(cpu);
-
-	if (cpu == 0) {
-		custom_table = policy0_custom_table;
-		table_size = ARRAY_SIZE(policy0_custom_table);
-	} else if (cpu == 6) {
-		custom_table = policy6_custom_table;
-		table_size = ARRAY_SIZE(policy6_custom_table);
-	} else {
-		dev_err(dev, "Unsupported CPU policy: %lu\n", cpu);
-		return -EINVAL;
-	}
-
-	/* Allocate cpufreq table */
-	c->table = devm_kcalloc(dev, table_size + 1,
-				sizeof(*c->table), GFP_KERNEL);
-	if (!c->table)
-		return -ENOMEM;
-
-	for (i = 0; i < table_size; i++) {
-		freq = custom_table[i].freq_khz;
-		volt = custom_table[i].volt_uv;
-		core_count = custom_table[i].core_count;
-
-		c->table[i].frequency = freq;
-
-		if (core_count != max_cores)
-			c->table[i].flags = CPUFREQ_BOOST_FREQ;
-
-		if (cpu_dev)
-			dev_pm_opp_add(cpu_dev, freq * 1000, volt);
-	}
-
-	/* End of table marker */
-	c->table[i].frequency = CPUFREQ_TABLE_END;
-
-	if (cpu_dev)
-		dev_pm_opp_set_sharing_cpus(cpu_dev, &c->related_cpus);
-
-	return 0;
-}
-#else
 static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 				    struct cpufreq_qcom *c, u32 max_cores)
 {
@@ -720,7 +525,6 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 
 	return 0;
 }
-#endif
 
 static void qcom_get_related_cpus(int index, struct cpumask *m)
 {
