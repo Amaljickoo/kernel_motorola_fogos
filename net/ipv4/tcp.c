@@ -2698,6 +2698,7 @@ int tcp_disconnect(struct sock *sk, int flags)
 	/* There's a bubble in the pipe until at least the first ACK. */
 	tp->app_limited = ~0U;
 	tp->rate_app_limited = 1;
+	tp->plb_rehash = 0;
 	tp->rack.mstamp = 0;
 	tp->rack.advanced = 0;
 	tp->rack.reo_wnd_steps = 1;
@@ -3368,6 +3369,8 @@ void tcp_get_info(struct sock *sk, struct tcp_info *info)
 	info->tcpi_reord_seen = tp->reord_seen;
 	info->tcpi_rcv_ooopack = tp->rcv_ooopack;
 	info->tcpi_snd_wnd = tp->snd_wnd;
+	info->tcpi_rcv_wnd = tp->rcv_wnd;
+	info->tcpi_rehash = tp->plb_rehash + tp->timeout_rehash;
 	info->tcpi_fastopen_client_fail = tp->fastopen_client_fail;
 	unlock_sock_fast(sk, slow);
 }
@@ -3398,6 +3401,8 @@ static size_t tcp_opt_stats_get_size(void)
 		nla_total_size(sizeof(u32)) + /* TCP_NLA_DSACK_DUPS */
 		nla_total_size(sizeof(u32)) + /* TCP_NLA_REORD_SEEN */
 		nla_total_size(sizeof(u32)) + /* TCP_NLA_SRTT */
+		nla_total_size(sizeof(u16)) + /* TCP_NLA_TIMEOUT_REHASH */
+		nla_total_size(sizeof(u32)) + /* TCP_NLA_REHASH */
 		0;
 }
 
@@ -3452,6 +3457,8 @@ struct sk_buff *tcp_get_timestamping_opt_stats(const struct sock *sk)
 	nla_put_u32(stats, TCP_NLA_DSACK_DUPS, tp->dsack_dups);
 	nla_put_u32(stats, TCP_NLA_REORD_SEEN, tp->reord_seen);
 	nla_put_u32(stats, TCP_NLA_SRTT, tp->srtt_us >> 3);
+	nla_put_u16(stats, TCP_NLA_TIMEOUT_REHASH, tp->timeout_rehash);
+	nla_put_u32(stats, TCP_NLA_REHASH, tp->plb_rehash + tp->timeout_rehash);
 
 	return stats;
 }
