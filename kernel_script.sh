@@ -69,21 +69,21 @@ echo 100 > /sys/devices/system/cpu/cpu_boost/input_boost_ms
 # Enable KSM
 echo 1 > /sys/kernel/mm/ksm/run
 
-# Set the io-scheduler to ssg on all mq support devices
-echo "ssg" > /sys/block/sda/queue/scheduler
-echo 64 > /sys/block/sda/queue/nr_requests
-echo "ssg" > /sys/block/sdb/queue/scheduler
-echo 64 > /sys/block/sdb/queue/nr_requests
-echo "ssg" > /sys/block/sdc/queue/scheduler
-echo 64 > /sys/block/sdc/queue/nr_requests
-echo "ssg" > /sys/block/sdd/queue/scheduler
-echo 64 > /sys/block/sdd/queue/nr_requests
-echo "ssg" > /sys/block/sde/queue/scheduler
-echo 64 > /sys/block/sde/queue/nr_requests
-echo "ssg" > /sys/block/sdf/queue/scheduler
-echo 64 > /sys/block/sdf/queue/nr_requests
-echo "ssg" > /sys/class/block/mmcblk1/queue/scheduler
-echo 64 > /sys/block/mmcblk1/queue/nr_requests
+# Set the io-scheduler to bfq on all mq support devices
+echo "bfq" > /sys/block/sda/queue/scheduler
+echo 128 > /sys/block/sda/queue/nr_requests
+echo "bfq" > /sys/block/sdb/queue/scheduler
+echo 128 > /sys/block/sdb/queue/nr_requests
+echo "bfq" > /sys/block/sdc/queue/scheduler
+echo 128 > /sys/block/sdc/queue/nr_requests
+echo "bfq" > /sys/block/sdd/queue/scheduler
+echo 128 > /sys/block/sdd/queue/nr_requests
+echo "bfq" > /sys/block/sde/queue/scheduler
+echo 128 > /sys/block/sde/queue/nr_requests
+echo "bfq" > /sys/block/sdf/queue/scheduler
+echo 128 > /sys/block/sdf/queue/nr_requests
+echo "bfq" > /sys/class/block/mmcblk1/queue/scheduler
+echo 128 > /sys/block/mmcblk1/queue/nr_requests
 
 # Runtime fs tuning
 echo 0 > /sys/block/sda/queue/iostats
