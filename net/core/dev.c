@@ -3381,28 +3381,25 @@ static void qdisc_pkt_len_init(struct sk_buff *skb)
 	 * we add to pkt_len the headers size of all segments
 	 */
 	if (shinfo->gso_size && skb_transport_header_was_set(skb)) {
-		u16 gso_segs = shinfo->gso_segs;
 		unsigned int hdr_len;
+		u16 gso_segs = shinfo->gso_segs;
 
 		/* mac layer + network layer */
-		if (!skb->encapsulation)
-			hdr_len = skb_transport_offset(skb);
-		else
-			hdr_len = skb_inner_transport_offset(skb);
+		hdr_len = skb_transport_header(skb) - skb_mac_header(skb);
 
 		/* + transport layer */
 		if (likely(shinfo->gso_type & (SKB_GSO_TCPV4 | SKB_GSO_TCPV6))) {
 			const struct tcphdr *th;
 			struct tcphdr _tcphdr;
 
-			th = skb_header_pointer(skb, hdr_len,
+			th = skb_header_pointer(skb, skb_transport_offset(skb),
 						sizeof(_tcphdr), &_tcphdr);
 			if (likely(th))
 				hdr_len += __tcp_hdrlen(th);
 		} else if (shinfo->gso_type & SKB_GSO_UDP_L4) {
 			struct udphdr _udphdr;
 
-			if (skb_header_pointer(skb, hdr_len,
+			if (skb_header_pointer(skb, skb_transport_offset(skb),
 					       sizeof(_udphdr), &_udphdr))
 				hdr_len += sizeof(struct udphdr);
 		}
