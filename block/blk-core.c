@@ -954,17 +954,6 @@ generic_make_request_checks(struct bio *bio)
 		break;
 	}
 
-	/*
-	 * Various block parts want %current->io_context and lazy ioc
-	 * allocation ends up trading a lot of pain for a small amount of
-	 * memory.  Just allocate it upfront.  This may fail and block
-	 * layer knows how to live with it.
-	 */
-	create_io_context(GFP_ATOMIC, q->node);
-
-	if (!blkcg_bio_issue_check(q, bio))
-		return false;
-
 	if (!bio_flagged(bio, BIO_TRACE_COMPLETION)) {
 		trace_block_bio_queue(q, bio);
 		/* Now that enqueuing has been traced, we need to trace
