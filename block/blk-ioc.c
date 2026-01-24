@@ -23,7 +23,7 @@ static struct kmem_cache *iocontext_cachep;
  *
  * Increment reference count to @ioc.
  */
-void get_io_context(struct io_context *ioc)
+static void get_io_context(struct io_context *ioc)
 {
 	BUG_ON(atomic_long_read(&ioc->refcount) <= 0);
 	atomic_long_inc(&ioc->refcount);
@@ -247,7 +247,8 @@ void ioc_clear_queue(struct request_queue *q)
 	__ioc_clear_queue(&icq_list);
 }
 
-int create_task_io_context(struct task_struct *task, gfp_t gfp_flags, int node)
+static int create_task_io_context(struct task_struct *task, gfp_t gfp_flags,
+		int node)
 {
 	struct io_context *ioc;
 	int ret;
@@ -285,6 +286,26 @@ int create_task_io_context(struct task_struct *task, gfp_t gfp_flags, int node)
 	task_unlock(task);
 
 	return ret;
+}
+
+/**
+ * create_io_context - try to create task->io_context
+ * @gfp_mask: allocation mask
+ * @node: allocation node
+ *
+ * If %current->io_context is %NULL, allocate a new io_context and install
+ * it.  Returns the current %current->io_context which may be %NULL if
+ * allocation failed.
+ *
+ * Note that this function can't be called with IRQ disabled because
+ * task_lock which protects %current->io_context is IRQ-unsafe.
+ */
+static inline struct io_context *create_io_context(gfp_t gfp_mask, int node)
+{
+	WARN_ON_ONCE(irqs_disabled());
+	if (unlikely(!current->io_context))
+		create_task_io_context(current, gfp_mask, node);
+	return current->io_context;
 }
 
 /**
@@ -369,8 +390,8 @@ EXPORT_SYMBOL(ioc_lookup_icq);
  * The caller is responsible for ensuring @ioc won't go away and @q is
  * alive and will stay alive until this function returns.
  */
-struct io_cq *ioc_create_icq(struct io_context *ioc, struct request_queue *q,
-			     gfp_t gfp_mask)
+static struct io_cq *ioc_create_icq(struct io_context *ioc,
+		struct request_queue *q, gfp_t gfp_mask)
 {
 	struct elevator_type *et = q->elevator->type;
 	struct io_cq *icq;
@@ -412,6 +433,36 @@ struct io_cq *ioc_create_icq(struct io_context *ioc, struct request_queue *q,
 	radix_tree_preload_end();
 	return icq;
 }
+
+struct io_cq *ioc_find_get_icq(struct request_queue *q)
+{
+	struct io_context *ioc;
+	struct io_cq *icq;
+
+	/* create task io_context, if we don't have one already */
+	if (unlikely(!current->io_context))
+		create_task_io_context(current, GFP_ATOMIC, q->node);
+
+	/*
+	 * May not have an IO context if it's a passthrough request
+	 */
+	ioc = current->io_context;
+	if (!ioc)
+		return NULL;
+
+	spin_lock_irq(&q->queue_lock);
+	icq = ioc_lookup_icq(ioc, q);
+	spin_unlock_irq(&q->queue_lock);
+
+	if (!icq) {
+		icq = ioc_create_icq(ioc, q, GFP_ATOMIC);
+		if (!icq)
+			return NULL;
+	}
+	get_io_context(icq->ioc);
+	return icq;
+}
+EXPORT_SYMBOL_GPL(ioc_find_get_icq);
 
 static int __init blk_ioc_init(void)
 {

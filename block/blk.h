@@ -273,33 +273,9 @@ static inline unsigned int bio_allowed_max_sectors(struct request_queue *q)
 /*
  * Internal io_context interface
  */
-void get_io_context(struct io_context *ioc);
+struct io_cq *ioc_find_get_icq(struct request_queue *q);
 struct io_cq *ioc_lookup_icq(struct io_context *ioc, struct request_queue *q);
-struct io_cq *ioc_create_icq(struct io_context *ioc, struct request_queue *q,
-			     gfp_t gfp_mask);
 void ioc_clear_queue(struct request_queue *q);
-
-int create_task_io_context(struct task_struct *task, gfp_t gfp_mask, int node);
-
-/**
- * create_io_context - try to create task->io_context
- * @gfp_mask: allocation mask
- * @node: allocation node
- *
- * If %current->io_context is %NULL, allocate a new io_context and install
- * it.  Returns the current %current->io_context which may be %NULL if
- * allocation failed.
- *
- * Note that this function can't be called with IRQ disabled because
- * task_lock which protects %current->io_context is IRQ-unsafe.
- */
-static inline struct io_context *create_io_context(gfp_t gfp_mask, int node)
-{
-	WARN_ON_ONCE(irqs_disabled());
-	if (unlikely(!current->io_context))
-		create_task_io_context(current, gfp_mask, node);
-	return current->io_context;
-}
 
 /*
  * Internal throttling interface
