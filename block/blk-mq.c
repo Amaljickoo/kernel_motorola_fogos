@@ -350,6 +350,7 @@ static struct request *blk_mq_rq_ctx_init(struct blk_mq_alloc_data *data,
 
 	data->ctx->rq_dispatched[op_is_sync(op)]++;
 	refcount_set(&rq->ref, 1);
+
 	return rq;
 }
 
@@ -506,18 +507,12 @@ static void __blk_mq_free_request(struct request *rq)
 void blk_mq_free_request(struct request *rq)
 {
 	struct request_queue *q = rq->q;
-	struct elevator_queue *e = q->elevator;
 	struct blk_mq_ctx *ctx = rq->mq_ctx;
 	struct blk_mq_hw_ctx *hctx = rq->mq_hctx;
 
-	if (rq->rq_flags & RQF_ELVPRIV) {
-		if (e && e->type->ops.finish_request)
-			e->type->ops.finish_request(rq);
-		if (rq->elv.icq) {
-			put_io_context(rq->elv.icq->ioc);
-			rq->elv.icq = NULL;
-		}
-	}
+	if ((rq->rq_flags & RQF_ELVPRIV) &&
+	    q->elevator->type->ops.finish_request)
+		q->elevator->type->ops.finish_request(rq);
 
 	ctx->rq_completed[rq_is_sync(rq)]++;
 	if (rq->rq_flags & RQF_MQ_INFLIGHT)
