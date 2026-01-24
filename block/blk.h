@@ -274,7 +274,7 @@ static inline unsigned int bio_allowed_max_sectors(struct request_queue *q)
  * Internal io_context interface
  */
 struct io_cq *ioc_find_get_icq(struct request_queue *q);
-struct io_cq *ioc_lookup_icq(struct io_context *ioc, struct request_queue *q);
+struct io_cq *ioc_lookup_icq(struct request_queue *q);
 void ioc_clear_queue(struct request_queue *q);
 
 /*
