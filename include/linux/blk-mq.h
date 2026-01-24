@@ -57,10 +57,6 @@ struct blk_mq_hw_ctx {
 	unsigned int		queue_num;
 
 	atomic_t		nr_active;
-	/**
-	 * @elevator_queued: Number of queued requests on hctx.
-	 */
-	atomic_t                elevator_queued;
 
 	struct hlist_node	cpuhp_dead;
 	struct kobject		kobj;
