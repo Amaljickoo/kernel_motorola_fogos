@@ -217,7 +217,9 @@ struct tcp_sock {
 	u16	advmss;		/* Advertised MSS			*/
 	u8	compressed_ack;
 	u8	tlp_retrans:1,	/* TLP is a retransmission */
-		unused_1:7;
+	tlp_orig_data_app_limited:1, /* app-limited before TLP rtx? */
+		unused_1:6;
+	u8	fast_ack_mode:2; /* which fast ack mode ? */
 	u32	chrono_start;	/* Start time in jiffies of a TCP chrono */
 	u32	chrono_stat[3];	/* Time in jiffies for chrono_stat stats */
 	u8	chrono_type:2,	/* current chronograph type */
@@ -231,7 +233,7 @@ struct tcp_sock {
 #ifndef __GENKSYMS__
 		fastopen_client_fail:2; /* reason why fastopen failed */
 #else
-		unused:2;
+		unused:3;
 #endif
 	u8	nonagle     : 4,/* Disable Nagle algorithm?             */
 		thin_lto    : 1,/* Use linear timeouts for thin streams */
@@ -303,8 +305,8 @@ struct tcp_sock {
 	u32	delivered_ce;	/* Like the above but only ECE marked packets */
 	u32	lost;		/* Total data packets lost incl. rexmits */
 	u32	app_limited;	/* limited until "delivered" reaches this val */
-	u64	first_tx_mstamp;  /* start of window send phase */
-	u64	delivered_mstamp; /* time we reached "delivered" */
+	u32	first_tx_mstamp;  /* start of window send phase */
+	u32	delivered_mstamp; /* time we reached "delivered" */
 	u32	rate_delivered;    /* saved rate sample: packets delivered */
 	u32	rate_interval_us;  /* saved rate sample: time elapsed */
 
@@ -370,6 +372,8 @@ struct tcp_sock {
 #define BPF_SOCK_OPS_TEST_FLAG(TP, ARG) 0
 #endif
 
+	u16 timeout_rehash;	/* Timeout-triggered rehash attempts */
+
 	u32 rcv_ooopack; /* Received out-of-order packets, for tcpinfo */
 
 /* Receiver side RTT estimation */
@@ -392,6 +396,7 @@ struct tcp_sock {
 		u32		  probe_seq_start;
 		u32		  probe_seq_end;
 	} mtu_probe;
+	u32     plb_rehash;     /* PLB-triggered rehash attempts */
 	u32	mtu_info; /* We received an ICMP_FRAG_NEEDED / ICMPV6_PKT_TOOBIG
 			   * while socket was owned by user.
 			   */
@@ -411,6 +416,10 @@ struct tcp_sock {
 	 */
 	struct request_sock __rcu *fastopen_rsk;
 	u32	*saved_syn;
+
+	/* Rerouting information */
+	u16	ecn_rehash;	/* PLB triggered rehash attempts */
+
 };
 
 enum tsq_enum {
