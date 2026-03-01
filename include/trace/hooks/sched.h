@@ -76,6 +76,10 @@ DECLARE_RESTRICTED_HOOK(android_rvh_update_deadline,
 	TP_PROTO(struct cfs_rq *cfs_rq, struct sched_entity *se, bool *skip_preempt),
 	TP_ARGS(cfs_rq, se, skip_preempt), 1);
 
+DECLARE_RESTRICTED_HOOK(android_rvh_find_energy_efficient_cpu,
+	TP_PROTO(struct task_struct *p, int prev_cpu, int sync, int *new_cpu),
+	TP_ARGS(p, prev_cpu, sync, new_cpu), 1);
+
 DECLARE_HOOK(android_vh_map_util_freq,
 	TP_PROTO(unsigned long util, unsigned long freq,
 		unsigned long cap, unsigned long *next_freq),
