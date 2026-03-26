@@ -267,6 +267,38 @@ static void sugov_deferred_update(struct sugov_policy *sg_policy, u64 time,
 	walt_irq_work_queue(&sg_policy->irq_work);
 }
 
+static unsigned long get_opp_capacity(struct cpufreq_policy *policy,
+									unsigned int freq)
+{
+	unsigned long max_cap = arch_scale_cpu_capacity(policy->cpu);
+	return (freq * max_cap) / policy->cpuinfo.max_freq;
+}
+
+static unsigned int find_target_freq(struct sugov_policy *sg_policy,
+									unsigned long util)
+{
+	struct cpufreq_policy *policy = sg_policy->policy;
+	struct cpufreq_frequency_table *pos;
+	unsigned int idx;
+	unsigned int best_freq = policy->cpuinfo.max_freq;
+	unsigned long opp_cap;
+
+	if (!policy->freq_table) {
+		return (util * policy->cpuinfo.max_freq) /
+			   arch_scale_cpu_capacity(policy->cpu);
+	}
+
+	cpufreq_for_each_entry_idx(pos, policy->freq_table, idx) {
+		opp_cap = get_opp_capacity(policy, pos->frequency);
+		if (opp_cap >= util) {
+			best_freq = pos->frequency;
+			break;
+		}
+	}
+
+	return best_freq;
+}
+
 #define TARGET_LOAD 80
 /**
  * get_next_freq - Compute a new frequency for a given cpufreq policy.
@@ -274,21 +306,15 @@ static void sugov_deferred_update(struct sugov_policy *sg_policy, u64 time,
  * @util: Current CPU utilization.
  * @max: CPU capacity.
  *
- * If the utilization is frequency-invariant, choose the new frequency to be
- * proportional to it, that is
+ * Find the lowest frequency in the frequency table that provides sufficient
+ * capacity to handle the current utilization. This table lookup approach
+ * replaces the standard linear calculation (C * max_freq * util / max) to
+ * accurately support platforms with non-linear voltage/frequency curves.
  *
- * next_freq = C * max_freq * util / max
- *
- * Otherwise, approximate the would-be frequency-invariant utilization by
- * util_raw * (curr_freq / max_freq) which leads to
- *
- * next_freq = C * curr_freq * util_raw / max
- *
- * Take C = 1.25 for the frequency tipping point at (util / max) = 0.8.
- *
- * The lowest driver-supported frequency which is equal or greater than the raw
- * next_freq (as calculated above) is returned, subject to policy min/max and
- * cpufreq driver limitations.
+ * A vendor hook (trace_android_vh_map_util_freq) is invoked first to allow
+ * vendor-specific overrides. If not overridden, the table lookup is used.
+ * The chosen frequency is then resolved against driver limitations and
+ * policy min/max constraints.
  */
 static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 				  unsigned long util, unsigned long max)
@@ -299,10 +325,12 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	unsigned long next_freq = 0;
 
 	trace_android_vh_map_util_freq(util, freq, max, &next_freq);
-	if (next_freq)
+
+	if (next_freq) {
 		freq = next_freq;
-	else
-		freq = map_util_freq(util, freq, max);
+	} else {
+		freq = find_target_freq(sg_policy, util);
+	}
 
 	trace_sugov_next_freq(policy->cpu, util, max, freq);
 	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
