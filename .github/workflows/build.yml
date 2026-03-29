@@ -1,0 +1,36 @@
+name: Build Kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y bc bison build-essential curl flex git kmod libssl-dev libelf-dev
+
+    - name: Setup toolchain
+      run: |
+        git clone https://github.com/kdrag0n/proton-clang.git --depth=1
+
+    - name: Build Kernel
+      run: |
+        export ARCH=arm64
+        export SUBARCH=arm64
+        export PATH=$PWD/proton-clang/bin:$PATH
+
+        make O=out ARCH=arm64 defconfig
+        make -j$(nproc) O=out ARCH=arm64 CC=clang
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: kernel
+        path: out/arch/arm64/boot/Image
