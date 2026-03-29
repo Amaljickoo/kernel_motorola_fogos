@@ -26,7 +26,7 @@ jobs:
         export SUBARCH=arm64
         export PATH=$PWD/proton-clang/bin:$PATH
 
-        make O=out ARCH=arm64 defconfig
+        make O=out ARCH=arm64 vendor/gki_defconfig
         make -j$(nproc) O=out ARCH=arm64 CC=clang
 
     - name: Upload
