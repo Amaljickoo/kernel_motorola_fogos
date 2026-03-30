@@ -23,11 +23,11 @@ jobs:
         run: |
           git clone https://github.com/kdrag0n/proton-clang.git --depth=1 tools/clang
 
-      - name: Integrate KernelSU (Official)
+      - name: Integrate KernelSU
         run: |
           curl -LSs https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh | bash -s main
 
-      - name: Integrate SUSFS (v1.5.5+ for 5.4)
+      - name: Integrate SUSFS (5.4 Corrected)
         run: |
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4 --depth=1 susfs_src
           cp susfs_src/kernel_patches/fs/susfs.c fs/
@@ -36,16 +36,16 @@ jobs:
           cd KernelSU && patch -p1 < 10_enable_susfs_for_ksu.patch && cd ..
           patch -p1 < susfs_src/kernel_patches/50_add_susfs_in_kernel-5.4.patch || true
 
-      - name: Configure Kernel
+      - name: Configure Kernel (Wi-Fi Protection)
         run: |
           export PATH=$PWD/tools/clang/bin:$PATH
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # Use fogos config
+          # Generate base config
           make O=out ARCH=arm64 vendor/fogos_defconfig
           
-          # Force version 5.4.274
+          # Match Stock Versioning (Critical for Wi-Fi)
           sed -i "s/^SUBLEVEL = .*/SUBLEVEL = 274/" Makefile
           
           # Enable KSU & SUSFS
@@ -53,21 +53,29 @@ jobs:
           ./scripts/config --file out/.config -e CONFIG_KERNELSU_SUSFS
           ./scripts/config --file out/.config -e CONFIG_KERNELSU_SUSFS_HAS_MAGIC_MOUNT
           
+          # WIFI FIX: Disable strict module checks so stock Wi-Fi drivers load
+          ./scripts/config --file out/.config -d CONFIG_MODVERSIONS
+          ./scripts/config --file out/.config -d CONFIG_MODULE_SIG
+          ./scripts/config --file out/.config -d CONFIG_MODULE_SIG_ALL
+          ./scripts/config --file out/.config -d CONFIG_MODULE_SIG_FORCE
+          
           make O=out ARCH=arm64 olddefconfig
 
-      - name: Build the Kernel
+      - name: Build Kernel
         run: |
-          # We remove the local 'ld' from the path to avoid the .relr.dyn error
+          # The PATH must include tools/clang/bin for CC=clang to work
           export PATH=$PWD/tools/clang/bin:$PATH
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          export CC=clang
           
-          # THE FIX: We force LD to use the system's aarch64 linker
+          # We use LD=ld.lld and HOSTLD=ld.lld to bypass the .relr.dyn error
           make -j$(nproc) O=out \
             ARCH=arm64 \
             CC=clang \
-            LD=aarch64-linux-gnu-ld \
+            HOSTCC=clang \
+            HOSTCXX=clang++ \
+            LD=ld.lld \
+            HOSTLD=ld.lld \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-gnu-
 
