@@ -11,7 +11,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: LineageOS/android_kernel_motorola_sm6375
-          ref: lineage-22.1  # Targeting Android 15 branch
+          ref: lineage-22.1
           fetch-depth: 1
 
       - name: Install Build Tools
@@ -27,19 +27,20 @@ jobs:
         run: |
           curl -LSs https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh | bash -s main
 
-      - name: Integrate SUSFS (v1.5.5+ for 5.4)
+      - name: Integrate SUSFS (Corrected Paths for 5.4)
         run: |
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4 --depth=1 susfs_src
-          # Copy SUSFS core files to the kernel tree
-          cp susfs_src/kernel_patched/fs/susfs.c fs/
-          cp susfs_src/kernel_patched/include/linux/susfs.h include/linux/
           
-          # Patch KernelSU to recognize SUSFS
-          # Using '|| true' to prevent workflow failure if the patch is already partially present
-          patch -p1 < susfs_src/kernel_patched/KernelSU/10_enable_susfs_for_ksu.patch || true
+          # Copy SUSFS core files - Fixed paths for kernel-5.4 branch
+          cp susfs_src/kernel_patches/fs/susfs.c fs/
+          cp susfs_src/kernel_patches/include/linux/susfs.h include/linux/
           
-          # Patch Kernel 5.4 core for SUSFS support
-          patch -p1 < susfs_src/kernel_patched/5.4/50_add_susfs_in_kernel-5.4.patch || true
+          # Copy and apply the KernelSU SUSFS patch
+          cp susfs_src/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch KernelSU/
+          cd KernelSU && patch -p1 < 10_enable_susfs_for_ksu.patch && cd ..
+          
+          # Apply the Kernel 5.4 core SUSFS patch
+          patch -p1 < susfs_src/kernel_patches/50_add_susfs_in_kernel-5.4.patch || true
 
       - name: Configure Kernel
         run: |
@@ -47,20 +48,17 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # Use the fogos specific config
-          # IF THIS STEP FAILS: Check the 'arch/arm64/configs/' folder for the correct name
+          # Generate config
           make O=out ARCH=arm64 vendor/fogos_defconfig
           
-          # MATCH YOUR VERSION EXACTLY (Crucial for modules/Wi-Fi)
-          # We force the Makefile to match your 5.4.274 version
+          # Set exact version to match your phone
           sed -i "s/^SUBLEVEL = .*/SUBLEVEL = 274/" Makefile
           
-          # Enable KSU & SUSFS in the config
+          # Enable KSU & SUSFS
           ./scripts/config --file out/.config -e CONFIG_KERNELSU
           ./scripts/config --file out/.config -e CONFIG_KERNELSU_SUSFS
           ./scripts/config --file out/.config -e CONFIG_KERNELSU_SUSFS_HAS_MAGIC_MOUNT
           
-          # Apply config changes
           make O=out ARCH=arm64 olddefconfig
 
       - name: Build the Kernel
@@ -70,7 +68,6 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CC=clang
           
-          # Compile the Image
           make -j$(nproc) O=out \
             ARCH=arm64 \
             CC=clang \
