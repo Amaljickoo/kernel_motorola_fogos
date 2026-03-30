@@ -36,14 +36,19 @@ jobs:
           cd KernelSU && patch -p1 < 10_enable_susfs_for_ksu.patch && cd ..
           patch -p1 < susfs_src/kernel_patches/50_add_susfs_in_kernel-5.4.patch || true
 
+      - name: Find Correct Config Name
+        run: |
+          echo "Listing all available Motorola configs:"
+          find arch/arm64/configs/vendor/ -name "*defconfig" || true
+          find arch/arm64/configs/vendor/ -name "*config" || true
+
       - name: Configure Kernel
         run: |
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # TRYING THE EXACT NAME YOU PROVIDED
-          # If this fails, we will try it without 'vendor/' prefix
-          make O=out ARCH=arm64 vendor/fogos_stock-config || make O=out ARCH=arm64 fogos_stock-config
+          # Attempting the most likely LineageOS name for fogos/holi
+          make O=out ARCH=arm64 vendor/holi-moto_defconfig
           
           # Match Stock Versioning (Wi-Fi Fix)
           sed -i "s/^SUBLEVEL = .*/SUBLEVEL = 274/" Makefile
@@ -57,7 +62,6 @@ jobs:
           ./scripts/config --file out/.config -d CONFIG_MODVERSIONS
           ./scripts/config --file out/.config -d CONFIG_MODULE_SIG
           ./scripts/config --file out/.config -d CONFIG_MODULE_SIG_ALL
-          ./scripts/config --file out/.config -d CONFIG_MODULE_SIG_FORCE
           
           make O=out ARCH=arm64 olddefconfig
 
@@ -66,7 +70,7 @@ jobs:
           export ARCH=arm64
           CLANG_BIN=$PWD/tools/clang/bin
           
-          # Permanent Linker Fix: HOSTCC=gcc avoids the .relr.dyn error
+          # HOSTCC=gcc avoids the .relr.dyn error we saw earlier
           make -j$(nproc) O=out \
             ARCH=arm64 \
             CC=$CLANG_BIN/clang \
