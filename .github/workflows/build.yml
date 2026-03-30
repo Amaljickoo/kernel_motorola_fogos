@@ -17,7 +17,7 @@ jobs:
       - name: Install Build Tools
         run: |
           sudo apt update
-          sudo apt install -y bc bison build-essential curl flex git kmod libssl-dev libelf-dev gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu pahole
+          sudo apt install -y bc bison build-essential curl flex git kmod libssl-dev libelf-dev gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu pahole llvm lld
 
       - name: Setup Proton Clang
         run: |
@@ -27,19 +27,13 @@ jobs:
         run: |
           curl -LSs https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh | bash -s main
 
-      - name: Integrate SUSFS (Corrected Paths for 5.4)
+      - name: Integrate SUSFS (v1.5.5+ for 5.4)
         run: |
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4 --depth=1 susfs_src
-          
-          # Copy SUSFS core files - Fixed paths for kernel-5.4 branch
           cp susfs_src/kernel_patches/fs/susfs.c fs/
           cp susfs_src/kernel_patches/include/linux/susfs.h include/linux/
-          
-          # Copy and apply the KernelSU SUSFS patch
           cp susfs_src/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch KernelSU/
           cd KernelSU && patch -p1 < 10_enable_susfs_for_ksu.patch && cd ..
-          
-          # Apply the Kernel 5.4 core SUSFS patch
           patch -p1 < susfs_src/kernel_patches/50_add_susfs_in_kernel-5.4.patch || true
 
       - name: Configure Kernel
@@ -48,10 +42,10 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # Generate config
+          # Use fogos config
           make O=out ARCH=arm64 vendor/fogos_defconfig
           
-          # Set exact version to match your phone
+          # Force version 5.4.274
           sed -i "s/^SUBLEVEL = .*/SUBLEVEL = 274/" Makefile
           
           # Enable KSU & SUSFS
@@ -63,14 +57,17 @@ jobs:
 
       - name: Build the Kernel
         run: |
+          # We remove the local 'ld' from the path to avoid the .relr.dyn error
           export PATH=$PWD/tools/clang/bin:$PATH
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CC=clang
           
+          # THE FIX: We force LD to use the system's aarch64 linker
           make -j$(nproc) O=out \
             ARCH=arm64 \
             CC=clang \
+            LD=aarch64-linux-gnu-ld \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-gnu-
 
