@@ -38,11 +38,11 @@ jobs:
 
       - name: Configure Kernel (Wi-Fi Protection)
         run: |
-          export PATH=$PWD/tools/clang/bin:$PATH
+          # Notice: We do NOT export PATH globally here
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # Generate base config
+          # Use system tools for the config step to avoid .relr.dyn error
           make O=out ARCH=arm64 vendor/fogos_defconfig
           
           # Match Stock Versioning (Critical for Wi-Fi)
@@ -53,7 +53,7 @@ jobs:
           ./scripts/config --file out/.config -e CONFIG_KERNELSU_SUSFS
           ./scripts/config --file out/.config -e CONFIG_KERNELSU_SUSFS_HAS_MAGIC_MOUNT
           
-          # WIFI FIX: Disable strict module checks so stock Wi-Fi drivers load
+          # WIFI FIX: Disable strict module checks
           ./scripts/config --file out/.config -d CONFIG_MODVERSIONS
           ./scripts/config --file out/.config -d CONFIG_MODULE_SIG
           ./scripts/config --file out/.config -d CONFIG_MODULE_SIG_ALL
@@ -63,22 +63,24 @@ jobs:
 
       - name: Build Kernel
         run: |
-          # We manually add the toolchain to the PATH
-          export PATH=$PWD/tools/clang/bin:$PATH
           export ARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
+          # Point directly to the Proton Clang binaries
+          CLANG_BIN=$PWD/tools/clang/bin
           
-          # THE FIX: We force HOSTLD and LD to use the system linker (ld.lld)
-          # This prevents the .relr.dyn error.
           make -j$(nproc) O=out \
             ARCH=arm64 \
-            CC=clang \
-            HOSTCC=clang \
-            HOSTCXX=clang++ \
-            LD=ld.lld \
-            HOSTLD=ld.lld \
+            CC=$CLANG_BIN/clang \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            CROSS_COMPILE=aarch64-linux-gnu-
+            HOSTCC=gcc \
+            HOSTCXX=g++ \
+            LD=ld.lld \
+            AR=$CLANG_BIN/llvm-ar \
+            NM=$CLANG_BIN/llvm-nm \
+            OBJCOPY=$CLANG_BIN/llvm-objcopy \
+            OBJDUMP=$CLANG_BIN/llvm-objdump \
+            STRIP=$CLANG_BIN/llvm-strip
 
       - name: Upload Kernel Image
         uses: actions/upload-artifact@v4
