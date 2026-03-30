@@ -27,7 +27,7 @@ jobs:
         run: |
           curl -LSs https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh | bash -s main
 
-      - name: Integrate SUSFS (5.4 Corrected)
+      - name: Integrate SUSFS
         run: |
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4 --depth=1 susfs_src
           cp susfs_src/kernel_patches/fs/susfs.c fs/
@@ -36,16 +36,16 @@ jobs:
           cd KernelSU && patch -p1 < 10_enable_susfs_for_ksu.patch && cd ..
           patch -p1 < susfs_src/kernel_patches/50_add_susfs_in_kernel-5.4.patch || true
 
-      - name: Configure Kernel (Wi-Fi Protection)
+      - name: Configure Kernel
         run: |
-          # Notice: We do NOT export PATH globally here
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # Use system tools for the config step to avoid .relr.dyn error
-          make O=out ARCH=arm64 vendor/fogos_defconfig
+          # TRYING THE EXACT NAME YOU PROVIDED
+          # If this fails, we will try it without 'vendor/' prefix
+          make O=out ARCH=arm64 vendor/fogos_stock-config || make O=out ARCH=arm64 fogos_stock-config
           
-          # Match Stock Versioning (Critical for Wi-Fi)
+          # Match Stock Versioning (Wi-Fi Fix)
           sed -i "s/^SUBLEVEL = .*/SUBLEVEL = 274/" Makefile
           
           # Enable KSU & SUSFS
@@ -53,7 +53,7 @@ jobs:
           ./scripts/config --file out/.config -e CONFIG_KERNELSU_SUSFS
           ./scripts/config --file out/.config -e CONFIG_KERNELSU_SUSFS_HAS_MAGIC_MOUNT
           
-          # WIFI FIX: Disable strict module checks
+          # Disable strict checks for Stock Wi-Fi modules
           ./scripts/config --file out/.config -d CONFIG_MODVERSIONS
           ./scripts/config --file out/.config -d CONFIG_MODULE_SIG
           ./scripts/config --file out/.config -d CONFIG_MODULE_SIG_ALL
@@ -64,9 +64,9 @@ jobs:
       - name: Build Kernel
         run: |
           export ARCH=arm64
-          # Point directly to the Proton Clang binaries
           CLANG_BIN=$PWD/tools/clang/bin
           
+          # Permanent Linker Fix: HOSTCC=gcc avoids the .relr.dyn error
           make -j$(nproc) O=out \
             ARCH=arm64 \
             CC=$CLANG_BIN/clang \
