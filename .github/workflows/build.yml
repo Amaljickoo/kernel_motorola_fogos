@@ -7,11 +7,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source
+      - name: Checkout Kernel Source
         uses: actions/checkout@v4
         with:
           repository: LineageOS/android_kernel_motorola_sm6375
-          ref: lineage-21.0
+          ref: lineage-22.1  # Targeting Android 15 branch
           fetch-depth: 1
 
       - name: Install Build Tools
@@ -20,7 +20,8 @@ jobs:
           sudo apt install -y bc bison build-essential curl flex git kmod libssl-dev libelf-dev gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu pahole
 
       - name: Setup Proton Clang
-        run: git clone https://github.com/kdrag0n/proton-clang.git --depth=1 tools/clang
+        run: |
+          git clone https://github.com/kdrag0n/proton-clang.git --depth=1 tools/clang
 
       - name: Integrate KernelSU (Official)
         run: |
@@ -32,22 +33,26 @@ jobs:
           # Copy SUSFS core files to the kernel tree
           cp susfs_src/kernel_patched/fs/susfs.c fs/
           cp susfs_src/kernel_patched/include/linux/susfs.h include/linux/
+          
           # Patch KernelSU to recognize SUSFS
-          patch -p1 < susfs_src/kernel_patched/KernelSU/10_enable_susfs_for_ksu.patch || echo "KSU-SUSFS patch error ignored"
+          # Using '|| true' to prevent workflow failure if the patch is already partially present
+          patch -p1 < susfs_src/kernel_patched/KernelSU/10_enable_susfs_for_ksu.patch || true
+          
           # Patch Kernel 5.4 core for SUSFS support
-          patch -p1 < susfs_src/kernel_patched/5.4/50_add_susfs_in_kernel-5.4.patch || echo "Kernel-SUSFS patch error ignored"
+          patch -p1 < susfs_src/kernel_patched/5.4/50_add_susfs_in_kernel-5.4.patch || true
 
-      - name: Configure and Build
+      - name: Configure Kernel
         run: |
           export PATH=$PWD/tools/clang/bin:$PATH
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          export CC=clang
           
           # Use the fogos specific config
+          # IF THIS STEP FAILS: Check the 'arch/arm64/configs/' folder for the correct name
           make O=out ARCH=arm64 vendor/fogos_defconfig
           
           # MATCH YOUR VERSION EXACTLY (Crucial for modules/Wi-Fi)
+          # We force the Makefile to match your 5.4.274 version
           sed -i "s/^SUBLEVEL = .*/SUBLEVEL = 274/" Makefile
           
           # Enable KSU & SUSFS in the config
@@ -57,9 +62,20 @@ jobs:
           
           # Apply config changes
           make O=out ARCH=arm64 olddefconfig
+
+      - name: Build the Kernel
+        run: |
+          export PATH=$PWD/tools/clang/bin:$PATH
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CC=clang
           
-          # Build the Image
-          make -j$(nproc) O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu-
+          # Compile the Image
+          make -j$(nproc) O=out \
+            ARCH=arm64 \
+            CC=clang \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu-
 
       - name: Upload Kernel Image
         uses: actions/upload-artifact@v4
