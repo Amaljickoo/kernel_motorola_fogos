@@ -63,12 +63,12 @@ jobs:
 
       - name: Build Kernel
         run: |
-          # The PATH must include tools/clang/bin for CC=clang to work
           export PATH=$PWD/tools/clang/bin:$PATH
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # We use LD=ld.lld and HOSTLD=ld.lld to bypass the .relr.dyn error
+          # THE FIX: We force the build to use the system linker (ld.lld)
+          # this prevents the .relr.dyn error on modern Ubuntu
           make -j$(nproc) O=out \
             ARCH=arm64 \
             CC=clang \
