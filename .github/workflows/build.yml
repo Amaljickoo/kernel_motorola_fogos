@@ -1,4 +1,4 @@
-name: Build Kernel
+name: Build Moto G45 (fogos) Stock-Safe Kernel
 
 on:
   workflow_dispatch:
@@ -6,31 +6,63 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout Source
+        uses: actions/checkout@v4
+        with:
+          repository: LineageOS/android_kernel_motorola_sm6375
+          ref: lineage-21.0
+          fetch-depth: 1
 
-    - name: Install dependencies
-      run: |
-        sudo apt update
-        sudo apt install -y bc bison build-essential curl flex git kmod libssl-dev libelf-dev
+      - name: Install Build Tools
+        run: |
+          sudo apt update
+          sudo apt install -y bc bison build-essential curl flex git kmod libssl-dev libelf-dev gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu pahole
 
-    - name: Setup toolchain
-      run: |
-        git clone https://github.com/kdrag0n/proton-clang.git --depth=1
+      - name: Setup Proton Clang
+        run: git clone https://github.com/kdrag0n/proton-clang.git --depth=1 tools/clang
 
-    - name: Build Kernel
-      run: |
-        export ARCH=arm64
-        export SUBARCH=arm64
-        export PATH=$PWD/proton-clang/bin:$PATH
+      - name: Integrate KernelSU (Official)
+        run: |
+          curl -LSs https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh | bash -s main
 
-        make O=out ARCH=arm64 vendor/gki_defconfig
-        make -j$(nproc) O=out ARCH=arm64 CC=clang
+      - name: Integrate SUSFS (v1.5.5+ for 5.4)
+        run: |
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4 --depth=1 susfs_src
+          # Copy SUSFS core files to the kernel tree
+          cp susfs_src/kernel_patched/fs/susfs.c fs/
+          cp susfs_src/kernel_patched/include/linux/susfs.h include/linux/
+          # Patch KernelSU to recognize SUSFS
+          patch -p1 < susfs_src/kernel_patched/KernelSU/10_enable_susfs_for_ksu.patch || echo "KSU-SUSFS patch error ignored"
+          # Patch Kernel 5.4 core for SUSFS support
+          patch -p1 < susfs_src/kernel_patched/5.4/50_add_susfs_in_kernel-5.4.patch || echo "Kernel-SUSFS patch error ignored"
 
-    - name: Upload
-      uses: actions/upload-artifact@v4
-      with:
-        name: kernel
-        path: out/arch/arm64/boot/Image
+      - name: Configure and Build
+        run: |
+          export PATH=$PWD/tools/clang/bin:$PATH
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CC=clang
+          
+          # Use the fogos specific config
+          make O=out ARCH=arm64 vendor/fogos_defconfig
+          
+          # MATCH YOUR VERSION EXACTLY (Crucial for modules/Wi-Fi)
+          sed -i "s/^SUBLEVEL = .*/SUBLEVEL = 274/" Makefile
+          
+          # Enable KSU & SUSFS in the config
+          ./scripts/config --file out/.config -e CONFIG_KERNELSU
+          ./scripts/config --file out/.config -e CONFIG_KERNELSU_SUSFS
+          ./scripts/config --file out/.config -e CONFIG_KERNELSU_SUSFS_HAS_MAGIC_MOUNT
+          
+          # Apply config changes
+          make O=out ARCH=arm64 olddefconfig
+          
+          # Build the Image
+          make -j$(nproc) O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu-
+
+      - name: Upload Kernel Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image-G45-fogos-KSU-SUSFS
+          path: out/arch/arm64/boot/Image
